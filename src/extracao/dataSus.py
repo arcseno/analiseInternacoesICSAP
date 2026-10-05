@@ -1,17 +1,27 @@
 import pandas as pd
 from pysus import sih
 
-df_bruto = sih(
+colunas_interesse = ['N_AIH', 'MUNIC_RES', 'DT_INTER', 'DIAG_PRINC', 'VAL_TOT', 'DIAS_PERM']
+
+# pede so a lista de arquivos, sem montar a tabela gigante
+arquivos = sih(
     state='PR',
     year=list(range(2022, 2027)),
     month=list(range(1, 13)),
     group='RD',
-    as_dataframe=True
+    as_dataframe=False
 )
+print('Arquivos encontrados:', len(arquivos))
+print(arquivos[:3])
 
-colunas_interesse = ['N_AIH', 'MUNIC_RES', 'DT_INTER', 'DIAG_PRINC', 'VAL_TOT', 'DIAS_PERM']
-df_reduzido = df_bruto[colunas_interesse].copy()
-del df_bruto
+# le cada arquivo trazendo so as 6 colunas
+partes = []
+for arquivo in arquivos:
+    parte = pd.read_parquet(arquivo, columns=colunas_interesse)
+    partes.append(parte)
+
+df_reduzido = pd.concat(partes, ignore_index=True)
+print('Linhas baixadas:', len(df_reduzido))
 
 df_reduzido = df_reduzido[
     (df_reduzido['DT_INTER'].astype(str).str[:4].astype(int).between(2022, 2026)) &
@@ -22,7 +32,7 @@ df_reduzido = df_reduzido[
 icsap_grupos = {
     "01 - Doenças preveníveis por imunização e condições sensíveis": [
         'A37', 'A36', 'A33', 'A34', 'A35', 'B26', 'B06', 'B05', 'A95', 'B16',
-        'G000', 'A170', 'A19', 'A150', 'A151', 'A152', 'A153', 'A160', 'A162',
+        'G000', 'A170', 'A19', 'A150', 'A151', 'A152', 'A153', 'A160', 'A161', 'A162',
         'A154', 'A155', 'A156', 'A157', 'A158', 'A159', 'A163', 'A164', 'A165',
         'A166', 'A167', 'A168', 'A169', 'A171', 'A172', 'A173', 'A174', 'A175',
         'A176', 'A177', 'A178', 'A179', 'A18', 'I00', 'I01', 'I02', 'A51', 'A52',
@@ -79,5 +89,5 @@ df_fato = (
 
 print(f"Após deduplicação: {len(df_fato)} registros ({df_fato['N_AIH'].nunique()} AIHs únicas)")
 
-df_fato.to_csv('internacoes_icsap_pr.csv', index=False, sep=';')
+df_fato.to_csv('dados/processados/internacoes_icsap_pr.csv', index=False, sep=';')
 print(f"Extração concluída! Total: {len(df_fato)} registros")
