@@ -2,8 +2,6 @@
 venv/
 __pycache__/
 *.pyc
-data/raw/
-data/processed/
 *.dbc
 .ipynb_checkpoints/
 .vscode/
