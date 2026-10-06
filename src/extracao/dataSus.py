@@ -1,9 +1,27 @@
 import pandas as pd
 from pysus import sih
+from ftplib import FTP
+from dbfread import DBF
+from pyreaddbc import dbc2dbf
+
+def ler_mes_ftp(nome_arquivo, colunas):
+    ftp = FTP('ftp.datasus.gov.br')
+    ftp.login()
+    ftp.cwd('/dissemin/publicos/SIHSUS/200801_/Dados/')
+    with open(nome_arquivo, 'wb') as arquivo:
+        ftp.retrbinary('RETR ' + nome_arquivo, arquivo.write)
+    ftp.quit()
+
+    nome_dbf = nome_arquivo.replace('.dbc', '.dbf')
+    dbc2dbf(nome_arquivo, nome_dbf)
+    df_mes = pd.DataFrame(iter(DBF(nome_dbf, encoding='cp1252', char_decode_errors='ignore')))
+    return df_mes[colunas]
 
 colunas_interesse = ['N_AIH', 'MUNIC_RES', 'DT_INTER', 'DIAG_PRINC', 'VAL_TOT', 'DIAS_PERM']
 
 # pede so a lista de arquivos, sem montar a tabela gigante
+# só uma anotação, propusemos utilizar o FTP do DATASUS, mas parece que agora ele lê como padrão um espelho do próprio PySUS,
+# mas o conteúdo continua sendo o mesmo.
 arquivos = sih(
     state='PR',
     year=list(range(2022, 2027)),
@@ -11,8 +29,8 @@ arquivos = sih(
     group='RD',
     as_dataframe=False
 )
-print('Arquivos encontrados:', len(arquivos))
-print(arquivos[:3])
+
+print('Arquivos do espelho PySUS:', len(arquivos))
 
 # le cada arquivo trazendo so as 6 colunas
 partes = []
@@ -20,13 +38,26 @@ for arquivo in arquivos:
     parte = pd.read_parquet(arquivo, columns=colunas_interesse)
     partes.append(parte)
 
+# completa os 7 meses que faltam no espelho, direto do FTP do DATASUS
+meses_faltando = ['RDPR2205.dbc', 'RDPR2206.dbc', 'RDPR2307.dbc', 'RDPR2408.dbc',
+                  'RDPR2510.dbc', 'RDPR2601.dbc', 'RDPR2602.dbc']
+for nome in meses_faltando:
+    parte = ler_mes_ftp(nome, colunas_interesse)
+    partes.append(parte)
+
+print('Total de meses (espelho + FTP):', len(partes))
+
 df_reduzido = pd.concat(partes, ignore_index=True)
+df_reduzido = df_reduzido.astype(str)
+df_reduzido['DT_INTER'] = df_reduzido['DT_INTER'].str.replace('-', '')
 print('Linhas baixadas:', len(df_reduzido))
 
 df_reduzido = df_reduzido[
     (df_reduzido['DT_INTER'].astype(str).str[:4].astype(int).between(2022, 2026)) &
     (df_reduzido['MUNIC_RES'].astype(str).str.startswith('41'))
 ]
+
+print('Depois do filtro de PR e periodo:', len(df_reduzido))
 
 # lista Brasileira de ICSAP
 icsap_grupos = {

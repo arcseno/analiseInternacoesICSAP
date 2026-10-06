@@ -5,3 +5,4 @@ __pycache__/
 *.dbc
 .ipynb_checkpoints/
 .vscode/
+*.dbf

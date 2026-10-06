@@ -2,3 +2,5 @@ pysus==2.11.6
 pandas==2.3.3
 xlrd==2.0.2
 ipykernel==7.4.0
+dbfread==2.0.7
+pyreaddbc==2.0.4
