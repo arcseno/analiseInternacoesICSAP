@@ -17,7 +17,7 @@ def ler_mes_ftp(nome_arquivo, colunas):
     df_mes = pd.DataFrame(iter(DBF(nome_dbf, encoding='cp1252', char_decode_errors='ignore')))
     return df_mes[colunas]
 
-colunas_interesse = ['N_AIH', 'MUNIC_RES', 'DT_INTER', 'DIAG_PRINC', 'VAL_TOT', 'DIAS_PERM']
+colunas_interesse = ['N_AIH', 'MUNIC_RES', 'DT_INTER', 'DIAG_PRINC', 'VAL_TOT', 'DIAS_PERM', 'ANO_CMPT', 'MES_CMPT']
 
 # pede so a lista de arquivos, sem montar a tabela gigante
 # só uma anotação, propusemos utilizar o FTP do DATASUS, mas parece que agora ele lê como padrão um espelho do próprio PySUS,
@@ -108,17 +108,36 @@ df_fato['VAL_TOT'] = pd.to_numeric(
 duplicatas_reais = df_fato[df_fato.duplicated(subset='N_AIH', keep=False)]
 print(f"AIHs com mais de um registro: {duplicatas_reais['N_AIH'].nunique()}")
 print(f"Linhas envolvidas: {len(duplicatas_reais)}")
+duplicatas_reais.sort_values('N_AIH').to_csv('dados/processados/duplicatas_aih.csv', index=False, sep=';')
 
-# deduplicação
-df_fato = (
-    df_fato
-    .sort_values('DIAS_PERM', ascending=False)
-    .drop_duplicates(subset='N_AIH', keep='first')
-    .sort_values(['MUNIC_RES', 'DT_INTER'])
-    .reset_index(drop=True)
+# deduplicacao: internacao longa e cobrada mes a mes (uma linha por competencia)
+# 1) remove so o que e repetido em tudo: mesma AIH, competencia, dias e valor
+antes = len(df_fato)
+df_fato = df_fato.drop_duplicates(subset=['N_AIH', 'ANO_CMPT', 'MES_CMPT', 'DIAS_PERM', 'VAL_TOT'])
+print('Linhas repetidas removidas:', antes - len(df_fato))
+
+# 2) junta as partes de cada AIH: soma dias e valor, o resto e igual
+df_fato = df_fato.groupby('N_AIH', as_index=False).agg(
+    MUNIC_RES=('MUNIC_RES', 'first'),
+    DT_INTER=('DT_INTER', 'first'),
+    DIAG_PRINC=('DIAG_PRINC', 'first'),
+    grupo_icsap=('grupo_icsap', 'first'),
+    VAL_TOT=('VAL_TOT', 'sum'),
+    DIAS_PERM=('DIAS_PERM', 'sum'),
 )
 
+df_fato = df_fato.sort_values(['MUNIC_RES', 'DT_INTER']).reset_index(drop=True)
+
 print(f"Após deduplicação: {len(df_fato)} registros ({df_fato['N_AIH'].nunique()} AIHs únicas)")
+
+# limite de dias muito altos: percentil 99,9 de DIAS_PERM
+LIMITE_DIAS = df_fato['DIAS_PERM'].quantile(0.999)
+print('Limite de dias (p99,9):', LIMITE_DIAS)
+
+# sinaliza valores suspeitos
+df_fato['flag_dias_zero'] = df_fato['DIAS_PERM'] == 0
+df_fato['flag_dias_alto'] = df_fato['DIAS_PERM'] > LIMITE_DIAS
+df_fato['flag_valor_zero'] = df_fato['VAL_TOT'] <= 0
 
 df_fato.to_csv('dados/processados/internacoes_icsap_pr.csv', index=False, sep=';')
 print(f"Extração concluída! Total: {len(df_fato)} registros")
