@@ -139,5 +139,5 @@ df_fato['flag_dias_zero'] = df_fato['DIAS_PERM'] == 0
 df_fato['flag_dias_alto'] = df_fato['DIAS_PERM'] > LIMITE_DIAS
 df_fato['flag_valor_zero'] = df_fato['VAL_TOT'] <= 0
 
-df_fato.to_csv('dados/processados/internacoes_icsap_pr.csv', index=False, sep=';')
+df_fato.to_csv('dados/processados/internacoes_icsap_pr.csv.gz', index=False, sep=';', compression='gzip')
 print(f"Extração concluída! Total: {len(df_fato)} registros")
