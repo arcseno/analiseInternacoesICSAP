@@ -17,7 +17,7 @@ def ler_mes_ftp(nome_arquivo, colunas):
     df_mes = pd.DataFrame(iter(DBF(nome_dbf, encoding='cp1252', char_decode_errors='ignore')))
     return df_mes[colunas]
 
-colunas_interesse = ['N_AIH', 'MUNIC_RES', 'DT_INTER', 'DIAG_PRINC', 'VAL_TOT', 'DIAS_PERM', 'ANO_CMPT', 'MES_CMPT']
+colunas_interesse = ['N_AIH', 'MUNIC_RES', 'MUNIC_MOV', 'DT_INTER', 'DIAG_PRINC', 'VAL_TOT', 'DIAS_PERM', 'ANO_CMPT', 'MES_CMPT']
 
 # pede so a lista de arquivos, sem montar a tabela gigante
 # só uma anotação, propusemos utilizar o FTP do DATASUS, mas parece que agora ele lê como padrão um espelho do próprio PySUS,
@@ -119,6 +119,7 @@ print('Linhas repetidas removidas:', antes - len(df_fato))
 # 2) junta as partes de cada AIH: soma dias e valor, o resto e igual
 df_fato = df_fato.groupby('N_AIH', as_index=False).agg(
     MUNIC_RES=('MUNIC_RES', 'first'),
+    MUNIC_MOV=('MUNIC_MOV', 'first'),
     DT_INTER=('DT_INTER', 'first'),
     DIAG_PRINC=('DIAG_PRINC', 'first'),
     grupo_icsap=('grupo_icsap', 'first'),
@@ -138,6 +139,7 @@ print('Limite de dias (p99,9):', LIMITE_DIAS)
 df_fato['flag_dias_zero'] = df_fato['DIAS_PERM'] == 0
 df_fato['flag_dias_alto'] = df_fato['DIAS_PERM'] > LIMITE_DIAS
 df_fato['flag_valor_zero'] = df_fato['VAL_TOT'] <= 0
+df_fato['flag_internado_fora'] = df_fato['MUNIC_RES'] != df_fato['MUNIC_MOV']
 
 df_fato.to_csv('dados/processados/internacoes_icsap_pr.csv.gz', index=False, sep=';', compression='gzip')
 print(f"Extração concluída! Total: {len(df_fato)} registros")
